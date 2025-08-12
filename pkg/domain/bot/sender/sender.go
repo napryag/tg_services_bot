@@ -1,9 +1,10 @@
 package sender
 
 import (
-	"a/GO/tg_services_bot-main/pkg/utils/errs"
 	"math"
 	"time"
+
+	"github.com/napryag/tg_services_bot/pkg/utils/errs"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/rs/zerolog"
