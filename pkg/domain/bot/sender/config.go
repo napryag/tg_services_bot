@@ -1,8 +1,9 @@
 package sender
 
 import (
-	"a/GO/tg_services_bot-main/pkg/utils/errs"
 	"os"
+
+	"github.com/napryag/tg_services_bot/pkg/utils/errs"
 
 	"github.com/joho/godotenv"
 )

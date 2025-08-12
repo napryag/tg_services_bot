@@ -1,4 +1,4 @@
-module a/GO/tg_services_bot-main
+module github.com/napryag/tg_services_bot
 
 go 1.23.6
 
