@@ -7,16 +7,14 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/joho/godotenv"
 	"github.com/napryag/tg_services_bot/pkg/utils/errs"
-	"github.com/rs/zerolog"
 	"gopkg.in/yaml.v3"
 )
 
 type Config struct {
-	Logger      zerolog.Logger
-	PostgreAddr string `yaml:"posgre_addr" validate:"required"`
-	WebhookURL  string `yaml:"webhook_url" validate:"required"`
-	HTTPPort    int    `yaml:"http_port" validate:"required"`
-	WorkerCount int    `yaml:"worker_count" validate:"required"`
+	PostgreAddr string `yaml:"postgre_addr" validate:"required"`
+	// WebhookURL  string `yaml:"webhook_url" validate:"required"`
+	HTTPPort    int `yaml:"http_port" validate:"required"`
+	WorkerCount int `yaml:"worker_count" validate:"required"`
 	BotToken    string
 }
 

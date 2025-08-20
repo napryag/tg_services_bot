@@ -1,4 +1,4 @@
-posgre_addr: localhost:6379
+postgre_addr: localhost:6379
 # if update -> keep '/update'
 http_port: 8443
 worker_count: 1
