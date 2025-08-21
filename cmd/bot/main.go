@@ -11,8 +11,8 @@ import (
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"github.com/napryag/tg_services_bot/pkg/domain/bot/reciever"
-	"github.com/napryag/tg_services_bot/pkg/domain/bot/reciever/config"
+	"github.com/napryag/tg_services_bot/pkg/domain/bot/receiver"
+	"github.com/napryag/tg_services_bot/pkg/domain/bot/receiver/config"
 	"github.com/napryag/tg_services_bot/pkg/utils/errs"
 	"github.com/rs/zerolog"
 )
@@ -32,7 +32,7 @@ func main() {
 		return
 	}
 
-	store := reciever.NewStore()
+	store := receiver.NewStore()
 
 	bot.Debug = false
 
@@ -59,27 +59,15 @@ func main() {
 			userID := m.From.ID
 			sess := store.Get(userID)
 
-			if m.IsCommand() && m.Command() == "start" {
-				sess.ResetFlow()
-				sess.State = reciever.StateStart
-				if _, err := bot.Request(tgbotapi.NewDeleteMessage(update.Message.Chat.ID, update.Message.MessageID)); err != nil {
-					logger.Warn().Err(err).Msg("delete /start failed")
-				}
-				msg := tgbotapi.NewPhoto(update.Message.Chat.ID, tgbotapi.FilePath("pictures/logo.png"))
-				msg.Caption = fmt.Sprintf("<b>Приветствую %s!\nДанный чат-бот поможет Вам записаться на услуги барбера. Здесь вы можете отслеживать свои записи и т.д.\nДля того, чтобы начать работу с нашим ботом нажмите НАЧАТЬ</b>😺", m.From.FirstName)
-				msg.ParseMode = "HTML"
-				msg.ReplyMarkup = reciever.RenderKeyboard(sess)
-				if _, err := bot.Send(msg); err != nil {
-					logger.Printf("send start menu error: %v", err)
-				}
+			// если это /start — обработали и уходим к след. апдейту
+			if handled := handleStartCommand(m, sess, bot, logger, update); handled {
 				continue
 			}
 
 			// Любой произвольный текст — удаляем (если возможно) и напоминаем
 			_, _ = bot.Request(tgbotapi.NewDeleteMessage(m.Chat.ID, m.MessageID))
 
-			remind := tgbotapi.NewMessage(m.Chat.ID, "Пожалуйста, используйте кнопки 👇")
-			remind.ReplyMarkup = reciever.RenderKeyboard(sess)
+			remind := tgbotapi.NewMessage(m.Chat.ID, "Пожалуйста, используйте кнопки 👆")
 			sent, _ := bot.Send(remind)
 			go func(chatID int64, mid int) {
 				time.Sleep(5 * time.Second)
@@ -94,50 +82,50 @@ func main() {
 			data := cq.Data
 
 			switch {
-			case data == reciever.CbStart:
-				sess.Go(reciever.StateMain)
-			case data == reciever.CbBook:
-				sess.Go(reciever.StateBookService)
-			case data == reciever.CbMy:
-				sess.Go(reciever.StateMy)
-			case data == reciever.CbHelp:
-				sess.Go(reciever.StateHelp)
-			case data == reciever.CbBack:
+			case data == receiver.CbStart:
+				sess.Go(receiver.StateMain)
+			case data == receiver.CbBook:
+				sess.Go(receiver.StateBookService)
+			case data == receiver.CbMy:
+				sess.Go(receiver.StateMy)
+			case data == receiver.CbHelp:
+				sess.Go(receiver.StateHelp)
+			case data == receiver.CbBack:
 				sess.Back()
 
-			case strings.HasPrefix(data, reciever.PSvc):
-				val, _ := reciever.Is(data, reciever.PSvc)
+			case strings.HasPrefix(data, receiver.PSvc):
+				val, _ := receiver.Is(data, receiver.PSvc)
 				sess.Booking.Service = val
-				sess.Go(reciever.StateBookMaster)
+				sess.Go(receiver.StateBookMaster)
 
-			case strings.HasPrefix(data, reciever.PM):
-				val, _ := reciever.Is(data, reciever.PM)
+			case strings.HasPrefix(data, receiver.PM):
+				val, _ := receiver.Is(data, receiver.PM)
 				sess.Booking.Master = val
-				sess.Go(reciever.StateBookDate)
+				sess.Go(receiver.StateBookDate)
 
-			case strings.HasPrefix(data, reciever.PD):
-				val, _ := reciever.Is(data, reciever.PD)
+			case strings.HasPrefix(data, receiver.PD):
+				val, _ := receiver.Is(data, receiver.PD)
 				sess.Booking.Date = val
-				sess.Go(reciever.StateBookTime)
+				sess.Go(receiver.StateBookTime)
 
-			case strings.HasPrefix(data, reciever.PT):
-				val, _ := reciever.Is(data, reciever.PT)
+			case strings.HasPrefix(data, receiver.PT):
+				val, _ := receiver.Is(data, receiver.PT)
 				sess.Booking.Time = val
-				sess.Go(reciever.StateBookConfirm)
+				sess.Go(receiver.StateBookConfirm)
 
-			case data == reciever.CbOk:
+			case data == receiver.CbOk:
 				// TODO: здесь сохраняем запись в вашу БД/сервис
 				// booking := sess.Booking
 				// err := appointmentsService.Create(booking)
 				// ...
 				text := fmt.Sprintf("Готово! Вы записаны: %s, %s, %s, %s.",
-					reciever.Title(sess.Booking.Service), reciever.Title(sess.Booking.Master),
-					reciever.HumanDate(sess.Booking.Date), sess.Booking.Time,
+					receiver.Title(sess.Booking.Service), receiver.Title(sess.Booking.Master),
+					receiver.HumanDate(sess.Booking.Date), sess.Booking.Time,
 				)
 				sess.ResetFlow() // возвращаемся в главное меню
 
 				edit := tgbotapi.NewEditMessageTextAndMarkup(
-					cq.Message.Chat.ID, cq.Message.MessageID, text, reciever.MainMenu(),
+					cq.Message.Chat.ID, cq.Message.MessageID, text, receiver.MainMenu(),
 				)
 				_, _ = bot.Send(edit)
 
@@ -147,10 +135,10 @@ func main() {
 			}
 
 			// Рендерим текущий экран (редактируем то же сообщение)
-			cap, rep := reciever.NewEditMessageCaptionAndMarkup(
-				cq.Message.Chat.ID, cq.Message.MessageID, reciever.RenderText(sess), reciever.RenderKeyboard(sess),
+			capt, rep := receiver.NewEditMessageCaptionAndMarkup(
+				cq.Message.Chat.ID, cq.Message.MessageID, receiver.RenderText(sess), receiver.RenderKeyboard(sess),
 			)
-			if _, err := bot.Send(cap); err != nil {
+			if _, err := bot.Send(capt); err != nil {
 				log.Printf("cap error: %v", err)
 			}
 			if _, err := bot.Send(rep); err != nil {
@@ -160,4 +148,30 @@ func main() {
 		}
 	}
 	logger.Info().Msg("bot stopped")
+}
+
+func handleStartCommand(
+	m *tgbotapi.Message,
+	sess *receiver.Session,
+	bot *tgbotapi.BotAPI,
+	logger zerolog.Logger,
+	update tgbotapi.Update,
+) bool {
+	if m.IsCommand() && m.Command() == "start" {
+		sess.ResetFlow()
+		sess.State = receiver.StateStart
+		if _, err := bot.Request(tgbotapi.NewDeleteMessage(update.Message.Chat.ID, update.Message.MessageID)); err != nil {
+			logger.Warn().Err(err).Msg("delete /start failed")
+		}
+		msg := tgbotapi.NewPhoto(update.Message.Chat.ID, tgbotapi.FilePath("pictures/logo.png"))
+		msg.Caption = fmt.Sprintf("<b>Приветствую %s!\n"+
+			"Данный чат-бот поможет Вам записаться на услуги барбера. Здесь вы можете отслеживать свои записи и т.д.\n"+
+			"Для того, чтобы начать работу с нашим ботом нажмите НАЧАТЬ</b>😺", m.From.FirstName)
+		msg.ParseMode = "HTML"
+		msg.ReplyMarkup = receiver.RenderKeyboard(sess)
+		if _, err := bot.Send(msg); err != nil {
+			logger.Printf("send start menu error: %v", err)
+		}
+	}
+	return false
 }

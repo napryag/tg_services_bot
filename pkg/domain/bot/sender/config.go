@@ -3,9 +3,8 @@ package sender
 import (
 	"os"
 
-	"github.com/napryag/tg_services_bot/pkg/utils/errs"
-
 	"github.com/joho/godotenv"
+	"github.com/napryag/tg_services_bot/pkg/utils/errs"
 )
 
 // ProcessorConfig values should be loaded from .env file.

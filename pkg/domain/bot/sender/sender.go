@@ -4,9 +4,8 @@ import (
 	"math"
 	"time"
 
-	"github.com/napryag/tg_services_bot/pkg/utils/errs"
-
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/napryag/tg_services_bot/pkg/utils/errs"
 	"github.com/rs/zerolog"
 )
 
@@ -48,5 +47,4 @@ func (p *Processor) Send(text string) (int, error) {
 	p.logger.Error().Err(err).Msg("send permanently failed")
 
 	return 0, errs.New("failed to send message").Wrap(err)
-
 }
