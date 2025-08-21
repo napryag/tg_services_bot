@@ -1,4 +1,4 @@
-package reciever
+package receiver
 
 import (
 	"fmt"
@@ -80,7 +80,7 @@ func (s *Store) Get(userID int64) *Session {
 	return se
 }
 
-// ---------- Callback keys ----------
+// ---------- Callback keys ----------.
 
 const (
 	CbStart = "start"
@@ -104,7 +104,7 @@ func Is(k, prefix string) (string, bool) {
 	return "", false
 }
 
-// ---------- UI builders ----------
+// ---------- UI builders ----------.
 func StartMenu() tgbotapi.InlineKeyboardMarkup {
 	return tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("НАЧАТЬ", CbStart)),
@@ -184,6 +184,8 @@ func HumanDate(iso string) string {
 
 func RenderText(sess *Session) string {
 	switch sess.State {
+	case StateStart:
+		return ""
 	case StateMain:
 		return "Выберите действие:"
 	case StateBookService:
@@ -239,10 +241,15 @@ func RenderKeyboard(sess *Session) tgbotapi.InlineKeyboardMarkup {
 	}
 }
 
-func NewEditMessageCaptionAndMarkup(chatID int64, messageID int, caption string, replyMarkup tgbotapi.InlineKeyboardMarkup) (tgbotapi.EditMessageCaptionConfig, tgbotapi.EditMessageReplyMarkupConfig) {
-	cap := tgbotapi.NewEditMessageCaption(chatID, messageID, caption)
+func NewEditMessageCaptionAndMarkup(
+	chatID int64,
+	messageID int,
+	caption string,
+	replyMarkup tgbotapi.InlineKeyboardMarkup,
+) (tgbotapi.EditMessageCaptionConfig, tgbotapi.EditMessageReplyMarkupConfig) {
+	capt := tgbotapi.NewEditMessageCaption(chatID, messageID, caption)
 	rep := tgbotapi.NewEditMessageReplyMarkup(chatID, messageID, replyMarkup)
-	return cap, rep
+	return capt, rep
 }
 
 func Title(s string) string {

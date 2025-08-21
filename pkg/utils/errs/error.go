@@ -1,6 +1,7 @@
 package errs
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -45,7 +46,7 @@ func (e *CustomError) Unwrap() error {
 }
 
 // fullErrorString builds the error string in the desired format:
-// "{msg: <message>, args: <args>, wrappedError: {<wrapped error>}}"
+// "{msg: <message>, args: <args>, wrappedError: {<wrapped error>}}".
 func (e *CustomError) fullErrorString() string {
 	var builder strings.Builder
 
@@ -62,7 +63,8 @@ func (e *CustomError) fullErrorString() string {
 
 	// Add wrapped error if it exists
 	if e.wrapped != nil {
-		if wrappedErr, ok := e.wrapped.(*CustomError); ok {
+		wrappedErr := &CustomError{}
+		if errors.As(e.wrapped, &wrappedErr) {
 			// If the wrapped error is also a CustomError, use its fullErrorString
 			builder.WriteString(fmt.Sprintf(", wrappedError: %s", wrappedErr.fullErrorString()))
 		} else {

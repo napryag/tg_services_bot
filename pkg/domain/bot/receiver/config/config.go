@@ -11,10 +11,10 @@ import (
 )
 
 type Config struct {
-	PostgreAddr string `yaml:"postgre_addr" validate:"required"`
-	// WebhookURL  string `yaml:"webhook_url" validate:"required"`
-	HTTPPort    int `yaml:"http_port" validate:"required"`
-	WorkerCount int `yaml:"worker_count" validate:"required"`
+	PostgreAddr string `yaml:"postgreAddr" validate:"required"`
+	// WebhookURL  string `yaml:"webhookUrl" validate:"required"`
+	HTTPPort    int `yaml:"httpPort" validate:"required"`
+	WorkerCount int `yaml:"workerCount" validate:"required"`
 	BotToken    string
 }
 
@@ -32,7 +32,6 @@ func LoadConfig() (*Config, error) {
 
 	// Validate
 	if err = validator.New().Struct(cfg); err != nil {
-
 		return nil, errs.New("config validation failed").Wrap(err)
 	}
 
