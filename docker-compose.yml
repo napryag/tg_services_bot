@@ -1,9 +1,8 @@
-version: '3.9'
 
 services:
   db:
     image: postgres:16
-    container_name: db_postgres
+    container_name: pg_store
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -12,6 +11,30 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -q"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
+  liquibase:
+    image: liquibase/liquibase:latest
+    profiles: ["liquibase"]        # чтобы запускать только когда нужно
+    depends_on:
+      db:
+        condition: service_healthy  # требуется Docker Compose v2
+    volumes:
+      - ./db/liquibase:/liquibase/changelog:ro
+    environment:
+      LIQUIBASE_LOG_LEVEL: info
+    command:
+      - "--changeLogFile=/liquibase/changelog/changelog-root.yaml"
+      - "--url=jdbc:postgresql://db:5432/${POSTGRES_DB}?sslmode=disable"
+      - "--username=${POSTGRES_USER}"
+      - "--password=${POSTGRES_PASSWORD}"
+      - "update"
+    restart: "no"
 
 volumes:
   pgdata:

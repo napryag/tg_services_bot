@@ -39,32 +39,66 @@ if [ ! -f .env ]; then
 fi
 
 # Подгружаем переменные окружения
+set -a
 source .env
+set +a
 
 # --- Разворачивание сервисов ---
-echo "Инициализация: docker-compose сервисов..."
+# Поддержим и docker compose v2, и старый docker-compose
+if command -v docker &>/dev/null && docker compose version &>/dev/null; then
+  DC="docker compose"
+else
+  DC="docker-compose"
+fi
+
+trap 'echo "❌ Ошибка на строке $LINENO"; exit 1' ERR
 
 case "$DEPLOY" in
   postgres)
-    echo "- Запускаем PostgreSQL"
-    docker-compose up -d db
+    echo "▶️  Запускаем PostgreSQL через $DC ..."
+    $DC up -d db
 
-    echo "Ожидание запуска PostgreSQL..."
-    until docker exec db_postgres pg_isready -U "$POSTGRES_USER" >/dev/null 2>&1; do
-      sleep 1
-    done
+    echo "⏳ Ожидание готовности Postgres..."
+    # Попытка №1: если есть healthcheck — ждём его
+    CID="$($DC ps -q db)"
+    if [[ -n "$CID" ]]; then
+      # если health отсутствует, inspect вернёт пусто — перейдём к pg_isready
+      for _ in {1..60}; do
+        status="$(docker inspect -f '{{.State.Health.Status}}' "$CID" 2>/dev/null || true)"
+        if [[ "$status" == "healthy" ]]; then
+          echo "✅ Postgres healthy"; break
+        fi
+        # если статуса нет — проверим pg_isready внутри контейнера
+        if docker exec "$CID" pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB" >/dev/null 2>&1; then
+          echo "✅ Postgres готов (pg_isready)"; break
+        fi
+        sleep 1
+      done
+    fi
 
-    echo "Накатываем Liquibase..."
-    LIQUIBASE_CMD="liquibase"  # предполагается, что liquibase доступен в PATH
-    CHANGELOG_FILE="liquibase/changelog.yml"
-    $LIQUIBASE_CMD \
-      --changeLogFile=$CHANGELOG_FILE \
-      --url="jdbc:postgresql://localhost:$POSTGRES_PORT/$POSTGRES_DB" \
-      --username=$POSTGRES_USER \
-      --password=$POSTGRES_PASSWORD \
-      update
+    echo "▶️  Применяем Liquibase миграции..."
 
-    echo "Liquibase update завершён."
+    if command -v liquibase >/dev/null 2>&1; then
+      liquibase \
+        --changeLogFile="$CHANGELOG_FILE" \
+        --url="jdbc:postgresql://$POSTGRES_HOST:$POSTGRES_PORT/$POSTGRES_DB?sslmode=disable" \
+        --username="$POSTGRES_USER" \
+        --password="$POSTGRES_PASSWORD" \
+        update
+    else
+      echo "ℹ️  liquibase не найден в PATH. Установите CLI или запустите через Docker образ:"
+      echo "    docker run --rm \\"
+      echo "      -v \"\$PWD/db/liquibase:/liquibase/changelog\" \\"
+      echo "      --network host \\"
+      echo "      liquibase/liquibase \\"
+      echo "      --changeLogFile=/liquibase/changelog/changelog-root.yaml \\"
+      echo "      --url=\"jdbc:postgresql://$POSTGRES_HOST:$POSTGRES_PORT/$POSTGRES_DB?sslmode=disable\" \\"
+      echo "      --username=\"$POSTGRES_USER\" --password=\"$POSTGRES_PASSWORD\" \\"
+      echo "      update"
+      exit 1
+    fi
+
+    echo "✅ Liquibase update завершён."      
     ;;
 
   *)

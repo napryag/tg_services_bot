@@ -18,8 +18,14 @@ import (
 )
 
 func main() {
+
+	// 1) Контекст
+	ctx := context.Background()
+
+	// 2) Логгер
 	logger := zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout}).With().Timestamp().Logger()
 
+	// 3) Загружаем конфиг
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		logger.Err(errs.New("failed to load config").Wrap(err)).Msg("config init")

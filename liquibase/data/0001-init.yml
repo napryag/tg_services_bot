@@ -1,0 +1,401 @@
+databaseChangeLog:
+  # PostgreSQL extension (для EXCLUDE по диапазонам)
+  - changeSet:
+      id: 0001-ext-btree-gist
+      author: you
+      changes:
+        - sql:
+            dbms: postgresql
+            sql: |
+              CREATE EXTENSION IF NOT EXISTS btree_gist;
+
+  # ENUM тип статуса записи
+  - changeSet:
+      id: 0001-type-appointment-status
+      author: you
+      changes:
+        - sql:
+            dbms: postgresql
+            splitStatements: false
+            stripComments: false
+            sql: |
+              DO $do$
+              BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'appointment_status') THEN
+                  CREATE TYPE appointment_status AS ENUM ('booked','confirmed','canceled','done');
+                END IF;
+              END;
+              $do$
+
+  # app_user
+  - changeSet:
+      id: 0001-table-app_user
+      author: you
+      changes:
+        - createTable:
+            tableName: app_user
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: app_user_pkey
+              - column:
+                  name: tg_user_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: tg_chat_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: username
+                  type: TEXT
+              - column:
+                  name: first_name
+                  type: TEXT
+              - column:
+                  name: last_name
+                  type: TEXT
+              - column:
+                  name: created_at
+                  type: TIMESTAMPTZ
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: TIMESTAMPTZ
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+        - addUniqueConstraint:
+            tableName: app_user
+            columnNames: tg_user_id
+            constraintName: app_user_tg_user_id_uq
+
+  # service
+  - changeSet:
+      id: 0001-table-service
+      author: you
+      changes:
+        - createTable:
+            tableName: service
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: service_pkey
+              - column:
+                  name: name
+                  type: TEXT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: duration_min
+                  type: INT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: price_minor
+                  type: INT
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+        - addUniqueConstraint:
+            tableName: service
+            columnNames: name
+            constraintName: service_name_uq
+        - sql:
+            dbms: postgresql
+            sql: |
+              ALTER TABLE service
+                ADD CONSTRAINT service_duration_min_chk
+                CHECK (duration_min > 0);
+
+  # master
+  - changeSet:
+      id: 0001-table-master
+      author: you
+      changes:
+        - createTable:
+            tableName: master
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: master_pkey
+              - column:
+                  name: name
+                  type: TEXT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: is_active
+                  type: BOOLEAN
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+
+  # master_service (услуги у мастера)
+  - changeSet:
+      id: 0001-table-master_service
+      author: you
+      changes:
+        - createTable:
+            tableName: master_service
+            columns:
+              - column:
+                  name: master_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: service_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+        - addPrimaryKey:
+            tableName: master_service
+            columnNames: master_id, service_id
+            constraintName: master_service_pk
+        - addForeignKeyConstraint:
+            baseTableName: master_service
+            baseColumnNames: master_id
+            referencedTableName: master
+            referencedColumnNames: id
+            onDelete: CASCADE
+            constraintName: master_service_master_fk
+        - addForeignKeyConstraint:
+            baseTableName: master_service
+            baseColumnNames: service_id
+            referencedTableName: service
+            referencedColumnNames: id
+            onDelete: CASCADE
+            constraintName: master_service_service_fk
+
+  # working_hours
+  - changeSet:
+      id: 0001-table-working_hours
+      author: you
+      changes:
+        - createTable:
+            tableName: working_hours
+            columns:
+              - column:
+                  name: master_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: dow
+                  type: INT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: time_start
+                  type: TIME
+                  constraints:
+                    nullable: false
+              - column:
+                  name: time_end
+                  type: TIME
+                  constraints:
+                    nullable: false
+        - addPrimaryKey:
+            tableName: working_hours
+            columnNames: master_id, dow
+            constraintName: working_hours_pk
+        - addForeignKeyConstraint:
+            baseTableName: working_hours
+            baseColumnNames: master_id
+            referencedTableName: master
+            referencedColumnNames: id
+            onDelete: CASCADE
+            constraintName: working_hours_master_fk
+        - sql:
+            dbms: postgresql
+            sql: |
+              ALTER TABLE working_hours
+                ADD CONSTRAINT working_hours_dow_chk
+                CHECK (dow BETWEEN 0 AND 6);
+              ALTER TABLE working_hours
+                ADD CONSTRAINT working_hours_time_chk
+                CHECK (time_end > time_start);
+
+  # day_off
+  - changeSet:
+      id: 0001-table-day_off
+      author: you
+      changes:
+        - createTable:
+            tableName: day_off
+            columns:
+              - column:
+                  name: master_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: day
+                  type: DATE
+                  constraints:
+                    nullable: false
+        - addPrimaryKey:
+            tableName: day_off
+            columnNames: master_id, day
+            constraintName: day_off_pk
+        - addForeignKeyConstraint:
+            baseTableName: day_off
+            baseColumnNames: master_id
+            referencedTableName: master
+            referencedColumnNames: id
+            onDelete: CASCADE
+            constraintName: day_off_master_fk
+
+  # appointment
+  - changeSet:
+      id: 0001-table-appointment
+      author: you
+      changes:
+        - createTable:
+            tableName: appointment
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: appointment_pkey
+              - column:
+                  name: user_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: master_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: service_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: start_at
+                  type: TIMESTAMPTZ
+                  constraints:
+                    nullable: false
+              - column:
+                  name: end_at
+                  type: TIMESTAMPTZ
+                  constraints:
+                    nullable: false
+              - column:
+                  name: status
+                  type: appointment_status
+                  defaultValue: booked
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: TIMESTAMPTZ
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+        - addForeignKeyConstraint:
+            baseTableName: appointment
+            baseColumnNames: user_id
+            referencedTableName: app_user
+            referencedColumnNames: id
+            onDelete: CASCADE
+            constraintName: appointment_user_fk
+        - addForeignKeyConstraint:
+            baseTableName: appointment
+            baseColumnNames: master_id
+            referencedTableName: master
+            referencedColumnNames: id
+            onDelete: RESTRICT
+            constraintName: appointment_master_fk
+        - addForeignKeyConstraint:
+            baseTableName: appointment
+            baseColumnNames: service_id
+            referencedTableName: service
+            referencedColumnNames: id
+            onDelete: RESTRICT
+            constraintName: appointment_service_fk
+        - createIndex:
+            indexName: appointment_master_start_idx
+            tableName: appointment
+            columns:
+              - column:
+                  name: master_id
+              - column:
+                  name: start_at
+
+  # EXCLUDE: запрет пересечений по времени для активных статусов
+  - changeSet:
+      id: 0001-appointment-exclude
+      author: you
+      changes:
+        - sql:
+            dbms: postgresql
+            sql: |
+              ALTER TABLE appointment
+              ADD CONSTRAINT appointment_no_overlap
+              EXCLUDE USING gist (
+                master_id WITH =,
+                tstzrange(start_at, end_at, '[)') WITH &&
+              ) WHERE (status IN ('booked','confirmed'));
+
+  # user_session (FSM)
+  - changeSet:
+      id: 0001-table-user_session
+      author: you
+      changes:
+        - createTable:
+            tableName: user_session
+            columns:
+              - column:
+                  name: user_id
+                  type: BIGINT
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: user_session_pkey
+                    nullable: false
+              - column:
+                  name: state
+                  type: TEXT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: payload
+                  type: JSONB
+                  defaultValueComputed: "'{}'::jsonb"
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: TIMESTAMPTZ
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+        - addForeignKeyConstraint:
+            baseTableName: user_session
+            baseColumnNames: user_id
+            referencedTableName: app_user
+            referencedColumnNames: id
+            onDelete: CASCADE
+            constraintName: user_session_user_fk
