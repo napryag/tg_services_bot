@@ -1,0 +1,82 @@
+databaseChangeLog:
+  - changeSet:
+      id: 0002-seed-services
+      author: you
+      changes:
+        - insert:
+            tableName: service
+            columns:
+              - column: {name: name, value: "Стрижка"}
+              - column: {name: duration_min, valueNumeric: 60}
+              - column: {name: price_minor, valueNumeric: 250000}
+        - insert:
+            tableName: service
+            columns:
+              - column: {name: name, value: "Бритьё"}
+              - column: {name: duration_min, valueNumeric: 30}
+              - column: {name: price_minor, valueNumeric: 150000}
+      rollback:
+        - delete:
+            tableName: service
+            where: "name IN ('Стрижка','Бритьё')"
+
+  - changeSet:
+      id: 0002-seed-masters
+      author: you
+      changes:
+        - insert:
+            tableName: master
+            columns:
+              - column: {name: name, value: "Андрей"}
+              - column: {name: is_active, valueBoolean: true}
+        - insert:
+            tableName: master
+            columns:
+              - column: {name: name, value: "Мария"}
+              - column: {name: is_active, valueBoolean: true}
+      rollback:
+        - delete:
+            tableName: master
+            where: "name IN ('Андрей','Мария')"
+
+  - changeSet:
+      id: 0002-seed-master-service
+      author: you
+      changes:
+        # привязки: оба мастера делают обе услуги
+        - sql: |
+            INSERT INTO master_service (master_id, service_id)
+            SELECT m.id, s.id
+            FROM master m CROSS JOIN service s
+            WHERE m.name IN ('Андрей','Мария')
+              AND s.name IN ('Стрижка','Бритьё')
+            ON CONFLICT DO NOTHING;
+      rollback:
+        - sql: |
+            DELETE FROM master_service
+            USING master m, service s
+            WHERE master_service.master_id = m.id
+              AND master_service.service_id = s.id
+              AND m.name IN ('Андрей','Мария')
+              AND s.name IN ('Стрижка','Бритьё');
+
+  - changeSet:
+      id: 0002-seed-working-hours
+      author: you
+      changes:
+        # Пн–Пт 10:00–18:00, Сб 10:00–16:00, Вс выходной
+        - sql: |
+            WITH m AS (SELECT id FROM master WHERE name IN ('Андрей','Мария'))
+            INSERT INTO working_hours (master_id, dow, time_start, time_end)
+            SELECT id, dow, time '10:00', time '18:00' FROM m, (VALUES (1),(2),(3),(4),(5)) t(dow)
+            ON CONFLICT (master_id, dow) DO NOTHING;
+            WITH m AS (SELECT id FROM master WHERE name IN ('Андрей','Мария'))
+            INSERT INTO working_hours (master_id, dow, time_start, time_end)
+            SELECT id, 6, time '10:00', time '16:00' FROM m
+            ON CONFLICT (master_id, dow) DO NOTHING;
+      rollback:
+        - sql: |
+            DELETE FROM working_hours
+            USING master m
+            WHERE working_hours.master_id = m.id
+              AND m.name IN ('Андрей','Мария');
